@@ -60,7 +60,7 @@ BOOL COptimalAP2Dlg::OnInitDialog()
 	// iniファイルから設定を読み込む
 	LoadIniFile();
 
-	// 初期値設定（仮）
+	// 初期値設定（仮）test
 	SetDlgItemInt( IDC_EDIT_HUMAN, 500, TRUE );
 	SetDlgItemInt( IDC_EDIT_AP, 6, TRUE );
 	SetDlgItemInt( IDC_EDIT_OBSTACLE, 30, TRUE );
