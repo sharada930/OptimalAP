@@ -4,6 +4,7 @@
 
 #pragma once
 #include "afxwin.h"
+#include "OptimalAP.h"
 
 // COptimalAP2Dlg ダイアログ
 class COptimalAP2Dlg : public CDialogEx
@@ -33,6 +34,9 @@ public:
 	int ErrorMessageBox( LPCTSTR lpText, UINT uType );
 	BOOL LoadIniFile();
 	void AddTailYen( PCHAR lpStr );
+	SETTING_DATA m_data;
+	BOOL m_bStop;
+	void OnGridDraw();
 
 	afx_msg void OnBnClickedBtnExit();
 	afx_msg void OnBnClickedBtnExecute();
@@ -46,4 +50,5 @@ public:
 	afx_msg void OnBnClickedChkGA();
 	afx_msg void OnBnClickedChkObstacle();
 	afx_msg void OnBnClickedBtnDraw();
+	CStatic m_pict;
 };

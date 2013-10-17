@@ -20,6 +20,10 @@ typedef struct _SETTING_DATA{
 	BOOL	bGUI;
 	BOOL	bGA;
 	BOOL	bObs;
+
+	// アルゴリズムから受け渡し用
+	BOOL	bChange;
+	CGrid	portergrid;
 }SETTING_DATA, *PSETTING_DATA;
 
 // グリッド一つ一つの持つデータ

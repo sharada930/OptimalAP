@@ -124,10 +124,16 @@ void GeneticAlgorithm( PSETTING_DATA data ){
 			
 			//Debug
 			DebugGridPrint( data->cOutputPath, parent_grid[0] );
+			data->bChange =TRUE;
+			data->portergrid = parent_grid[0];
 			//printf( "第%d世代　通信速度[%f]\r\n", iLoop, parent_grid[0].m_Speed );
 
 			// 終了処理
 			if( iLoop == iMaxGene ){
+				// 子供たちの中身を開放
+				for( i=0; i<child_num; i++ ){
+					child_grid[i].Close();
+				}
 				break;
 			}
 

@@ -3,7 +3,6 @@
 //
 
 #include "stdafx.h"
-#include "OptimalAP.h"
 #include "OptimalAP2.h"
 #include "OptimalAP2Dlg.h"
 #include "afxdialogex.h"
@@ -12,6 +11,7 @@
 #define new DEBUG_NEW
 #endif
 
+UINT DrawThread( LPVOID lpParam );
 
 // COptimalAP2Dlg ダイアログ
 
@@ -24,6 +24,7 @@ COptimalAP2Dlg::COptimalAP2Dlg(CWnd* pParent /*=NULL*/)
 void COptimalAP2Dlg::DoDataExchange(CDataExchange* pDX)
 {
 	CDialogEx::DoDataExchange(pDX);
+	DDX_Control(pDX, IDC_STATIC_PICT, m_pict);
 }
 
 BEGIN_MESSAGE_MAP(COptimalAP2Dlg, CDialogEx)
@@ -56,6 +57,8 @@ BOOL COptimalAP2Dlg::OnInitDialog()
 	SetIcon(m_hIcon, FALSE);		// 小さいアイコンの設定
 
 	// TODO: 初期化をここに追加します。
+
+	m_data.bChange = FALSE;
 
 	// iniファイルから設定を読み込む
 	LoadIniFile();
@@ -97,6 +100,11 @@ void COptimalAP2Dlg::OnPaint()
 	}
 	else
 	{
+		// ここから
+		if( m_data.bChange ){
+			OnGridDraw();
+		}
+		// ここまで
 		CDialogEx::OnPaint();
 	}
 }
@@ -119,36 +127,43 @@ void COptimalAP2Dlg::OnBnClickedBtnExit()
 // 実行ボタン
 void COptimalAP2Dlg::OnBnClickedBtnExecute()
 {
-	SETTING_DATA data;
+//	SETTING_DATA data;
 	CButton *chkObs;
 
-	GetDlgItemText( IDC_EDIT_INPUT, data.cInputPath, sizeof( data.cInputPath ) );
-	GetDlgItemText( IDC_EDIT_OUTPUT, data.cOutputPath, sizeof( data.cOutputPath ) );
-	if( data.cInputPath[0] == 0x00 || data.cOutputPath[0] == 0x00 ){
+	GetDlgItemText( IDC_EDIT_INPUT, m_data.cInputPath, sizeof( m_data.cInputPath ) );
+	GetDlgItemText( IDC_EDIT_OUTPUT, m_data.cOutputPath, sizeof( m_data.cOutputPath ) );
+	if( m_data.cInputPath[0] == 0x00 || m_data.cOutputPath[0] == 0x00 ){
 		ErrorMessageBox( "WorkPath Error", MB_OK );
 		goto EXIT_EXE;
 	}
-	data.iHuman = GetDlgItemInt( IDC_EDIT_HUMAN, 0, TRUE );
-	data.iAP = GetDlgItemInt( IDC_EDIT_AP, 0, TRUE );
-	data.iObstacle = GetDlgItemInt( IDC_EDIT_OBSTACLE, 0, TRUE );
-	data.iGridX = GetDlgItemInt( IDC_EDIT_GRIDX, 0, TRUE );
-	data.iGridY = GetDlgItemInt( IDC_EDIT_GRIDY, 0, TRUE );
-	data.iGene = GetDlgItemInt( IDC_EDIT_GENE, 0, TRUE );
-	data.iSample = GetDlgItemInt( IDC_EDIT_SAMPLE, 0, TRUE );
+	m_data.iHuman = GetDlgItemInt( IDC_EDIT_HUMAN, 0, TRUE );
+	m_data.iAP = GetDlgItemInt( IDC_EDIT_AP, 0, TRUE );
+	m_data.iObstacle = GetDlgItemInt( IDC_EDIT_OBSTACLE, 0, TRUE );
+	m_data.iGridX = GetDlgItemInt( IDC_EDIT_GRIDX, 0, TRUE );
+	m_data.iGridY = GetDlgItemInt( IDC_EDIT_GRIDY, 0, TRUE );
+	m_data.iGene = GetDlgItemInt( IDC_EDIT_GENE, 0, TRUE );
+	m_data.iSample = GetDlgItemInt( IDC_EDIT_SAMPLE, 0, TRUE );
 
 	// mode
 	chkObs = ( CButton* )GetDlgItem( IDC_CHK_OBSTACLE );
 	if( chkObs->GetCheck() == 1 ){
-		data.bObs  = TRUE;
+		m_data.bObs  = TRUE;
 	}
 	else{
-		data.bObs = FALSE;
+		m_data.bObs = FALSE;
 	}
 
 	// エラーチェック...
 
+	// 描画データ処理スレッド起動
+	m_bStop = FALSE;
+	AfxBeginThread( DrawThread, this );
+
 	// 遺伝的アルゴリズム
-	GeneticAlgorithm( &data ); 
+	GeneticAlgorithm( &m_data ); 
+
+	// 描画スレッド終了
+	m_bStop = TRUE;
 
 	ErrorMessageBox( "GA Succeed", MB_OK );
 
@@ -319,49 +334,89 @@ void COptimalAP2Dlg::OnBnClickedChkObstacle()
 UINT DrawThread( LPVOID lpParam )
 {
 	COptimalAP2Dlg* pDlg = ( COptimalAP2Dlg* )lpParam;
-	CStatic	*	staticPict;
+	pDlg->m_data.bChange = FALSE;
+
+	while( 1 ){
+		if( pDlg->m_data.bChange ){
+			// 描画
+			pDlg->UpdateWindow();
+			pDlg->Invalidate( FALSE );
+			//Dlg->m_data.bChange = FALSE;
+		}
+
+		// 終了処理
+		if( pDlg->m_bStop ){
+			break;
+		}
+
+		// ちょっと待機
+		//Sleep( 100 );
+
+	}
+	return TRUE;
+
+}
+// 描画ボタン　後々消す
+void COptimalAP2Dlg::OnBnClickedBtnDraw()
+{
+	AfxBeginThread( DrawThread, this );
+}
+
+void COptimalAP2Dlg::OnGridDraw(){
+	CGrid		grid = this->m_data.portergrid;
 	CDC*		pDC;
 	CRect		rect;
-	CPen		pen_red( PS_SOLID,1,RGB(255,0,0) );
-	CPen		pen_black( PS_SOLID, 1, RGB(0,0,0) );
+	CPen			pen_red( PS_SOLID,1,RGB(255,0,0) );
+	CPen			pen_black( PS_SOLID, 1, RGB(0,0,0) );
 	CBrush		br_yellow(RGB(255,255,0));
 	CPen*		oldpen;
 	CBrush*	oldbr;
-
-	staticPict = ( CStatic* )GetDlgItem( pDlg->m_hIcon );
+	CString		cstr;
 
 	// デバイスコンテキスト取得
-	pDC=staticPict->GetDC();
+	pDC=m_pict.GetDC();
 
 	// デバイスコンテキストの大きさ取得
-	staticPict->GetClientRect(&rect);
+	m_pict.GetClientRect(&rect);
 
 	// 背景白(初期ペン・初期ブラシ)
-	//pDC->Rectangle(&rect);
+	pDC->Rectangle(&rect);
 
 	// ペン・ブラシ変更
 	oldpen = pDC->SelectObject(&pen_black);
 	//oldbr = pDC->SelectObject(&br_yellow);
+
+	// Grid描画
+	int iX = 0;
+	int iY = 0;
+	int iDiff = 15;
+	for( int j=1; j<=grid.m_iGridY; j++ ){
+		for( int i=1; i<=grid.m_iGridX; i++ ){
+			pDC->Rectangle( iX, iY, iX+iDiff, iY+iDiff );
+
+			// 人の期待値
+			if( grid.m_grid[i][j].iExpVal > 0 ){
+				//cstr.Format( "%i", grid.m_grid[i][j].iExpVal );
+				pDC->TextOutA( iX, iY, "1" );
+				
+			}
+			iX += iDiff;
+		}
+		iX = 0;
+		iY += iDiff;
+	}
 
 	// 円描画
 	//pDC->Ellipse(10,10,100,100);
 
 	// 正方形描写
 	//pDC->MoveTo( 10, 10 );
-	pDC->Rectangle( 0,0,20,20 );
-
-	// 再描画
-	UpdateWindow();
+	//pDC->Rectangle( 0,0,20,20 );
 
 	// 初期化
 	pDC->SelectObject(oldpen);
 	//pDC->SelectObject(oldbr);
 
 	// 解放処理
-	staticPict->ReleaseDC( pDC );
-}
-// 描画ボタン　後々消す
-void COptimalAP2Dlg::OnBnClickedBtnDraw()
-{
-	AfxBeginThread( DrawThread, this );
+	m_pict.ReleaseDC( pDC );
 }
