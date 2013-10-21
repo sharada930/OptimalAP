@@ -1,4 +1,5 @@
 #include <windows.h>
+#include "Obstacle.h"
 #pragma once
 class CGrid
 {
@@ -14,7 +15,7 @@ public:
 	void		CopyGridData( CGrid srcgrid );
 	BOOL	CheckCover();
 	void		RandomSetExpVal( INT iNum );
-	void		RandomSetObstacle( INT iNum );
+	void		RandomSetObstacle( INT iNum, CObstacle *obs );
 	INT		GetRandomInt( INT iNum );
 	
 	// Variables

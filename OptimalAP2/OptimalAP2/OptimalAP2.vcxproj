@@ -104,6 +104,7 @@
     <ClInclude Include="APoint.h" />
     <ClInclude Include="CSVFile.h" />
     <ClInclude Include="Grid.h" />
+    <ClInclude Include="Obstacle.h" />
     <ClInclude Include="OptimalAP.h" />
     <ClInclude Include="OptimalAP2.h" />
     <ClInclude Include="OptimalAP2Dlg.h" />
@@ -115,6 +116,7 @@
     <ClCompile Include="APoint.cpp" />
     <ClCompile Include="CSVFile.cpp" />
     <ClCompile Include="Grid.cpp" />
+    <ClCompile Include="Obstacle.cpp" />
     <ClCompile Include="OptimalAP.cpp" />
     <ClCompile Include="OptimalAP2.cpp" />
     <ClCompile Include="OptimalAP2Dlg.cpp" />

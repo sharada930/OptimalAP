@@ -12,6 +12,8 @@ INT			g_iRand = 1;
 INT			iXList[5] = {-1,0,0,0,1};
 INT			iYList[5] = {0,-1,0,1,0};
 
+// 障害物処理高速化対応
+CObstacle g_obs;
 
 // Input Data	後々入力出来るようにする
 INT		g_iGridSize	=	3;		// 一つのグリッドの一辺の長さ(m)
@@ -81,6 +83,8 @@ void GeneticAlgorithm( PSETTING_DATA data ){
 		int i = 0;
 		int j = 0;
 		int iLoop = 1;
+		
+		g_obs.Init( data->iObstacle );
 
 		// 人の期待値、障害物は共通
 		for( i=0; i<child_num; i++ ){
@@ -90,7 +94,7 @@ void GeneticAlgorithm( PSETTING_DATA data ){
 			child_grid[i].Init( iX, iY );
 			// 障害物
 			if( data->bObs ){
-				child_grid[i].RandomSetObstacle( data->iObstacle );
+				child_grid[i].RandomSetObstacle( data->iObstacle, &g_obs  );
 			}
 			// 人の期待値
 			child_grid[i].RandomSetExpVal( iExpval );
@@ -121,12 +125,40 @@ void GeneticAlgorithm( PSETTING_DATA data ){
 				}
 			}
 			//---------------------2.適応度 ここまで---------------------//
-			
-			//Debug
-			DebugGridPrint( data->cOutputPath, parent_grid[0] );
-			data->bChange =TRUE;
-			data->portergrid = parent_grid[0];
-			//printf( "第%d世代　通信速度[%f]\r\n", iLoop, parent_grid[0].m_Speed );
+
+			// 描画処理
+			if( data->bGUI ){
+				HANDLE hSendEvent = NULL;
+				HANDLE hRevEvent = NULL;
+				HANDLE hMap = NULL;
+				CGrid *tmp_grid;
+
+				hRevEvent = CreateEvent( NULL, TRUE, FALSE, "OPTIMALAP_END_DRAW_EVENT" );
+
+				// グリッドデータもダイアログに送る
+				hMap = CreateFileMapping( NULL, NULL, PAGE_READWRITE, 0, sizeof( CGrid ), "OPTIMALAP_DRAW_MAP" );
+				tmp_grid = (CGrid*)MapViewOfFile( hMap, FILE_MAP_WRITE, 0, 0, 0 );
+				tmp_grid->Init( parent_grid[0].m_iGridX, parent_grid[0].m_iGridY );
+				tmp_grid->m_iGridX =  parent_grid[0].m_iGridX;
+				tmp_grid->m_iGridY =  parent_grid[0].m_iGridY;
+				tmp_grid->CopyGridData( parent_grid[0] );
+				tmp_grid->m_Speed = parent_grid[0].m_Speed;
+				FlushViewOfFile( tmp_grid, sizeof( CGrid ) );
+				UnmapViewOfFile( tmp_grid );
+
+				// ダイアログに通知する
+				hSendEvent = OpenEvent( EVENT_MODIFY_STATE, FALSE, "OPTIMALAP_DRAW_EVENT" );
+				SetEvent( hSendEvent );
+
+				// 描写終了待ち		
+				WaitForSingleObject( hRevEvent, INFINITE );
+				ResetEvent( hRevEvent );
+				CloseHandle( hRevEvent );
+			}
+			else{
+				// ファイルに落とす
+				DebugGridPrint( data->cOutputPath, parent_grid[0] );
+			}
 
 			// 終了処理
 			if( iLoop == iMaxGene ){
@@ -284,6 +316,8 @@ CGrid RandomUnitGrid( CGrid grid1, CGrid grid2, CAPoint* newap )
 #endif
 	return newgrid;
 }
+
+
 // 局所探索法
 // 目的：最低の通信速度の最大化
 CGrid LocalSearchAlgorithm( CGrid org_grid, CAPoint org_ap )
@@ -302,6 +336,7 @@ CGrid LocalSearchAlgorithm( CGrid org_grid, CAPoint org_ap )
 	CAPoint new_ap;
 	CGrid		temp_grid;
 	CAPoint temp_ap;
+	
 
 	new_grid.Init( org_grid.m_iGridX, org_grid.m_iGridY );
 	temp_grid.Init( org_grid.m_iGridX, org_grid.m_iGridY );
@@ -477,6 +512,11 @@ SPEEDUP_FLOW:
 	org_grid.WriteCSVFile( hFile );
 #endif
 	//printf( "%d,%f\r\n", bCover, dFinalMinSpeed );
+
+	// 終了処理
+	new_grid.Close();
+	temp_grid.Close();
+
 	return org_grid;
 }
 
@@ -529,6 +569,7 @@ VOID CalcCoverArea( CGrid grid, CAPoint ap )
 	double dX;
 	double dY;
 	double dDis;
+	BOOL bCross = FALSE;
 
 	INT iMinAP = -1;
 	for( int j=1; j<=grid.m_iGridY; j++ ){
@@ -540,6 +581,18 @@ VOID CalcCoverArea( CGrid grid, CAPoint ap )
 				dX = ap.m_ap[iap].iPosX - i;
 				dY = ap.m_ap[iap].iPosY - j;
 				dDis = sqrt( dX*dX+dY*dY );
+
+				// 障害物処理
+				bCross = FALSE;
+				for( int iobs=1; iobs<=g_obs.m_iTotalObs; iobs++ ){
+					// こいつが遅い、なんとかしないと...
+					bCross = CheckCrossingObstacle( i, j,  ap.m_ap[iap].iPosX, ap.m_ap[iap].iPosY, g_obs.m_pObs[iobs].iPosX, g_obs.m_pObs[iobs].iPosY );
+					if( bCross != FALSE ){
+						dDis = dDis * 2; // 距離を二倍にする＝電波減衰半分？
+						break;
+					}
+				}
+				
 				if( dDis < dMinDis ){
 					dMinDis = dDis;
 					iMinAP = iap;
@@ -596,6 +649,70 @@ INT GetRandomInt( INT iNum )
 	return iRand;
 }
 
+//       P(Px,Py)
+//             |
+//       Q(Qx,Qy)
+//
+// A(Ax,Ay)-----B(Bx,By)
+// |							|
+// |							|
+// C(Cx,Cy)-----D(Dx,Dy)
+//
+
+// 線分PQと線分ABが交差するか判定
+BOOL CheckCrossingLine(double Px, double Py,double Qx,double Qy,double Ax,double Ay, double Bx, double By){
+	double dRet1 = 10000;
+	double dRet2 = 10000;
+
+	dRet1 = ( (Px-Ax)*(By-Ay) - (Py-Ay)*(Bx-Ax) )*( (Qx-Ax)*(By-Ay) - (Qy-Ay)*(Bx-Ax) );
+	dRet2 = ( (Ax-Px)*(Qy-Py) - (Ay-Py)*(Qx-Px) )*( (Bx-Px)*(Qy-Py) - (By-Py)*(Qx-Px) );
+
+	if( dRet1 <= 0 && dRet2 <= 0 ){
+		return TRUE;
+	}
+	return FALSE;
+}
+
+//   P(APX, APY)
+//        |
+//   Q(X, Y)
+
+// 線分PQと四角形ABCD(障害物)が交差するか判定
+BOOL CheckCrossingObstacle( double X, double Y, double APX, double APY, double ObsX, double ObsY )
+{
+	double dAx,dAy,dBx,dBy,dCx,dCy,dDx,dDy;
+
+	// 左上
+	dAx = ObsX - 0.5;
+	dAy = ObsY + 0.5;
+	// 右上
+	dBx = ObsX + 0.5;
+	dBy = ObsY + 0.5;
+	// 右下
+	dCx = ObsX + 0.5;
+	dCy = ObsY - 0.5;
+	// 左下
+	dDx = ObsX - 0.5;
+	dDy = ObsY - 0.5;
+		DWORD dwTime = GetTickCount();
+	// AB
+	if( CheckCrossingLine( X, Y, APX, APY, dAx, dAy, dBx, dBy ) ){
+		return TRUE;
+	}
+	// BC
+	if( CheckCrossingLine( X, Y, APX, APY, dBx, dBy, dCx, dCy ) ){
+		return TRUE;
+	}
+	// CD
+	if( CheckCrossingLine( X, Y, APX, APY, dCx, dCy, dDx, dDy ) ){
+		return TRUE;
+	}
+	// DA
+	if( CheckCrossingLine( X, Y, APX, APY, dDx, dDy, dAx, dAy ) ){
+		return TRUE;
+	}
+	return FALSE;
+}
 #if 0
 // CSVファイルを読み込む
 BOOL ReadCSVFile( PCHAR pCSVPath )

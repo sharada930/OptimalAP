@@ -36,7 +36,9 @@ public:
 	void AddTailYen( PCHAR lpStr );
 	SETTING_DATA m_data;
 	BOOL m_bStop;
+	BOOL m_bDraw;
 	void OnGridDraw();
+	CGrid m_drawgrid;
 
 	afx_msg void OnBnClickedBtnExit();
 	afx_msg void OnBnClickedBtnExecute();

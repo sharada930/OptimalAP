@@ -39,11 +39,9 @@ void CGrid::Init( int iX, int iY )
 
 void CGrid::Close()
 {
-	/*
-	for( int i=0; i<m_iGridX+1; i++ ) {
-		delete[] m_grid[m_iGridY+1];
+	for( int i=0; i<m_iGridY+1; i++ ) {
+		delete[] m_grid[i];
 	}
-	*/
 	delete[] m_grid;
 }
 
@@ -170,8 +168,6 @@ void CGrid::WriteCSVFile( HANDLE hFile )
 // GridData‚ÌƒRƒs[ Init‚¢‚ç‚¸
 VOID CGrid::CopyGridData( CGrid srcgrid )
 {
-	//Init( srcgrid.m_iGridX, srcgrid.m_iGridY );
-
 	for( int j=1; j<=m_iGridY; j++ ){
 		for( int i=1; i<=m_iGridX; i++ ){
 			m_grid[i][j].bAP = srcgrid.m_grid[i][j].bAP;
@@ -207,10 +203,14 @@ BOOL CGrid::CheckCover()
 // l‚ÌŠú‘Ò’l‚ðƒ‰ƒ“ƒ_ƒ€‚ÉŠ„‚èU‚é
 void CGrid::RandomSetExpVal( INT iNum )
 {
+	int iX;
+	int iY;
 	// l‚Ì‚¢‚éŠú‘Ò’l‚ðŠ„‚èU‚é
 	for( int i=1; i<=iNum; i++ ){
-		if( m_grid[GetRandomInt( m_iGridX )][GetRandomInt( m_iGridY )].bNotValid != TRUE ){
-			m_grid[GetRandomInt( m_iGridX )][GetRandomInt( m_iGridY )].iExpVal += 1;
+		iX = GetRandomInt( m_iGridX );
+		iY = GetRandomInt( m_iGridY );
+		if( m_grid[iX][iY].bNotValid != TRUE ){
+			m_grid[iX][iY].iExpVal += 1;
 		}
 		else{
 			i--;
@@ -219,15 +219,24 @@ void CGrid::RandomSetExpVal( INT iNum )
 }
 
 // áŠQ•¨‚ðƒ‰ƒ“ƒ_ƒ€‚ÉŠ„‚èU‚é
-void CGrid::RandomSetObstacle( INT iNum )
+void CGrid::RandomSetObstacle( INT iNum, CObstacle *obs )
 {
+	int iX;
+	int iY;
+	int iCnt = 1;
 	// áŠQ•¨‚ðŠ„‚èU‚é
 	for( int i=1; i<=iNum; i++ ){
-		if( m_grid[GetRandomInt( m_iGridX )][GetRandomInt( m_iGridY )].bNotValid != TRUE ){
-			m_grid[GetRandomInt( m_iGridX )][GetRandomInt( m_iGridY )].bNotValid = TRUE;
+		iX = GetRandomInt( m_iGridX );
+		iY = GetRandomInt( m_iGridY );
+		if( m_grid[iX][iY].bNotValid != TRUE ){
+			m_grid[iX][iY].bNotValid = TRUE;
+			obs->m_pObs[iCnt].iPosX = iX;
+			obs->m_pObs[iCnt].iPosY = iY;
+			iCnt++;
 		}
 		else{
 			i--;
 		}
 	}
+	printf( "%i", iCnt );
 }

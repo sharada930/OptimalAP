@@ -45,6 +45,9 @@
     <ClInclude Include="OptimalAP.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
+    <ClInclude Include="Obstacle.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="OptimalAP2.cpp">
@@ -66,6 +69,9 @@
       <Filter>ソース ファイル</Filter>
     </ClCompile>
     <ClCompile Include="OptimalAP.cpp">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
+    <ClCompile Include="Obstacle.cpp">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
   </ItemGroup>

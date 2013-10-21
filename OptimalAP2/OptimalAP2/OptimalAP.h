@@ -5,6 +5,7 @@
 #include "CSVFile.h"
 #include "Grid.h"
 #include "APoint.h"
+#include "Obstacle.h"
 
 // ダイアログからもらうデータ
 typedef struct _SETTING_DATA{
@@ -20,10 +21,6 @@ typedef struct _SETTING_DATA{
 	BOOL	bGUI;
 	BOOL	bGA;
 	BOOL	bObs;
-
-	// アルゴリズムから受け渡し用
-	BOOL	bChange;
-	CGrid	portergrid;
 }SETTING_DATA, *PSETTING_DATA;
 
 // グリッド一つ一つの持つデータ
@@ -62,3 +59,4 @@ double CalcSpeed( CGrid grid, CAPoint ap );
 BOOL ReadCSVFile( PCHAR pCSVPath );
 void GeneticAlgorithm( PSETTING_DATA data );
 CGrid RandomUnitGrid( CGrid grid1, CGrid grid2, CAPoint* newap );
+BOOL CheckCrossingObstacle( double X, double Y, double APX, double APY, double ObsX, double ObsY );

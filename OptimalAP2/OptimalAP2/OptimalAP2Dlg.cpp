@@ -58,19 +58,10 @@ BOOL COptimalAP2Dlg::OnInitDialog()
 
 	// TODO: 初期化をここに追加します。
 
-	m_data.bChange = FALSE;
+	m_bDraw = FALSE;
 
 	// iniファイルから設定を読み込む
 	LoadIniFile();
-
-	// 初期値設定（仮）test
-	SetDlgItemInt( IDC_EDIT_HUMAN, 500, TRUE );
-	SetDlgItemInt( IDC_EDIT_AP, 6, TRUE );
-	SetDlgItemInt( IDC_EDIT_OBSTACLE, 30, TRUE );
-	SetDlgItemInt( IDC_EDIT_GRIDX, 30, TRUE );
-	SetDlgItemInt( IDC_EDIT_GRIDY, 30, TRUE );
-	SetDlgItemInt( IDC_EDIT_GENE, 10, TRUE );
-	SetDlgItemInt( IDC_EDIT_SAMPLE, 10, TRUE );
 
 	return TRUE;  // フォーカスをコントロールに設定した場合を除き、TRUE を返します。
 }
@@ -101,9 +92,9 @@ void COptimalAP2Dlg::OnPaint()
 	else
 	{
 		// ここから
-		if( m_data.bChange ){
-			OnGridDraw();
-		}
+		//if( m_data.bChange ){
+		OnGridDraw();
+		//}
 		// ここまで
 		CDialogEx::OnPaint();
 	}
@@ -127,9 +118,10 @@ void COptimalAP2Dlg::OnBnClickedBtnExit()
 // 実行ボタン
 void COptimalAP2Dlg::OnBnClickedBtnExecute()
 {
-//	SETTING_DATA data;
-	CButton *chkObs;
+	CButton *chkMode;
 
+
+	// コントロールから内容を取り出す
 	GetDlgItemText( IDC_EDIT_INPUT, m_data.cInputPath, sizeof( m_data.cInputPath ) );
 	GetDlgItemText( IDC_EDIT_OUTPUT, m_data.cOutputPath, sizeof( m_data.cOutputPath ) );
 	if( m_data.cInputPath[0] == 0x00 || m_data.cOutputPath[0] == 0x00 ){
@@ -144,26 +136,38 @@ void COptimalAP2Dlg::OnBnClickedBtnExecute()
 	m_data.iGene = GetDlgItemInt( IDC_EDIT_GENE, 0, TRUE );
 	m_data.iSample = GetDlgItemInt( IDC_EDIT_SAMPLE, 0, TRUE );
 
-	// mode
-	chkObs = ( CButton* )GetDlgItem( IDC_CHK_OBSTACLE );
-	if( chkObs->GetCheck() == 1 ){
+	// Obstacle Mode
+	chkMode = ( CButton* )GetDlgItem( IDC_CHK_OBSTACLE );
+	if( chkMode->GetCheck() == 1 ){
 		m_data.bObs  = TRUE;
 	}
 	else{
 		m_data.bObs = FALSE;
 	}
+	// GUI Mode
+	chkMode = ( CButton* )GetDlgItem( IDC_CHK_GUI);
+	if( chkMode->GetCheck() == 1 ){
+		m_data.bGUI  = TRUE;
+	}
+	else{
+		m_data.bGUI = FALSE;
+	}
 
 	// エラーチェック...
 
 	// 描画データ処理スレッド起動
-	m_bStop = FALSE;
-	AfxBeginThread( DrawThread, this );
+	if( m_data.bGUI ){
+		m_bStop = FALSE;
+		AfxBeginThread( DrawThread, this );
+	}
 
 	// 遺伝的アルゴリズム
 	GeneticAlgorithm( &m_data ); 
 
 	// 描画スレッド終了
-	m_bStop = TRUE;
+	if( m_data.bGUI ){
+		m_bStop = TRUE;
+	}
 
 	ErrorMessageBox( "GA Succeed", MB_OK );
 
@@ -334,27 +338,54 @@ void COptimalAP2Dlg::OnBnClickedChkObstacle()
 UINT DrawThread( LPVOID lpParam )
 {
 	COptimalAP2Dlg* pDlg = ( COptimalAP2Dlg* )lpParam;
-	pDlg->m_data.bChange = FALSE;
+	HANDLE hSendEvent = NULL;
+	HANDLE hRevEvent = NULL;
+	HANDLE hMap = NULL;
+
+	// GAからの通知用
+	hSendEvent = CreateEvent( NULL, TRUE, FALSE, "OPTIMALAP_DRAW_EVENT" );
+	hMap = CreateFileMapping( NULL, NULL, PAGE_READWRITE, 0, sizeof( CGrid ), "OPTIMALAP_DRAW_MAP" );
+	if( hMap != NULL && MapViewOfFile( hMap, FILE_MAP_WRITE || FILE_MAP_READ, 0, 0, 0 ) != NULL ){
+		CloseHandle( hMap );
+		hMap = NULL;
+	}
 
 	while( 1 ){
-		if( pDlg->m_data.bChange ){
-			// 描画
-			pDlg->UpdateWindow();
-			pDlg->Invalidate( FALSE );
-			//Dlg->m_data.bChange = FALSE;
+		// 待機処理
+		WaitForSingleObject( hSendEvent, INFINITE );
+		ResetEvent( hSendEvent );
+
+		hMap = OpenFileMapping( FILE_MAP_WRITE || FILE_MAP_READ, FALSE, "OPTIMALAP_DRAW_MAP" );
+		if( hMap != NULL ){
+			// データもらう
+			CGrid *tmp_grid;
+			tmp_grid = (CGrid*)MapViewOfFile( hMap, FILE_MAP_READ, 0, 0, 0 );
+			pDlg->m_drawgrid.Init( tmp_grid->m_iGridX, tmp_grid->m_iGridY );
+			pDlg->m_drawgrid.CopyGridData( tmp_grid[0] );
+			pDlg->m_drawgrid.m_iGridX = tmp_grid->m_iGridX;
+			pDlg->m_drawgrid.m_iGridY = tmp_grid->m_iGridY;
+			pDlg->m_drawgrid.m_Speed = tmp_grid->m_Speed;
+			UnmapViewOfFile( tmp_grid );
+			tmp_grid = NULL;
+
+			// データ受取完了通知
+			hRevEvent = OpenEvent( EVENT_MODIFY_STATE, FALSE, "OPTIMALAP_END_DRAW_EVENT" );
+			SetEvent( hRevEvent );
+
+			// 終了処理
+			CloseHandle( hMap );
+			hMap = NULL;
 		}
+		// 描画
+		pDlg->m_bDraw = TRUE;
+		pDlg->UpdateWindow();
+		pDlg->Invalidate( FALSE );
+	}
 
-		// 終了処理
-		if( pDlg->m_bStop ){
-			break;
-		}
-
-		// ちょっと待機
-		//Sleep( 100 );
-
+	if( hSendEvent != NULL ){
+		CloseHandle( hSendEvent );
 	}
 	return TRUE;
-
 }
 // 描画ボタン　後々消す
 void COptimalAP2Dlg::OnBnClickedBtnDraw()
@@ -363,60 +394,96 @@ void COptimalAP2Dlg::OnBnClickedBtnDraw()
 }
 
 void COptimalAP2Dlg::OnGridDraw(){
-	CGrid		grid = this->m_data.portergrid;
 	CDC*		pDC;
 	CRect		rect;
-	CPen			pen_red( PS_SOLID,1,RGB(255,0,0) );
-	CPen			pen_black( PS_SOLID, 1, RGB(0,0,0) );
-	CBrush		br_yellow(RGB(255,255,0));
+	CPen		pen_red( PS_SOLID,1,RGB(255,0,0) );
+	CPen		pen_black( PS_SOLID, 1, RGB(0,0,0) );
+	CBrush		brush_white = (RGB(255,255,255));
+	CBrush		brush_gray = (RGB(50,50,50));
+	CBrush		brush_strong[] = {RGB(255,255,255),
+												  /*赤*/(RGB(255,0,0)), /*緑*/(RGB(0,255,0)), /*青*/(RGB(0,0,255)),
+												  /*？*/(RGB(255,255,0)), /*？*/(RGB(0,255,255)), /*？*/(RGB(255,0,255)) };
+	CBrush		brush_weak[] = { RGB(255,255,255),
+												  /*赤*/(RGB(255,200,200)), /*緑*/(RGB(200,255,200)), /*青*/(RGB(200,200,255)),
+												  /*？*/(RGB(255,255,200)), /*？*/(RGB(200,255,255)), /*？*/(RGB(255,200,255)) };
 	CPen*		oldpen;
 	CBrush*	oldbr;
 	CString		cstr;
+	
+	if( m_bDraw != FALSE ){
+		// デバイスコンテキスト取得
+		pDC=m_pict.GetDC();
 
-	// デバイスコンテキスト取得
-	pDC=m_pict.GetDC();
+		// デバイスコンテキストの大きさ取得
+		m_pict.GetClientRect(&rect);
 
-	// デバイスコンテキストの大きさ取得
-	m_pict.GetClientRect(&rect);
+		// 背景白(初期ペン・初期ブラシ)
+		pDC->Rectangle(&rect);
 
-	// 背景白(初期ペン・初期ブラシ)
-	pDC->Rectangle(&rect);
+		// ペン・ブラシ変更
+		oldpen = pDC->SelectObject(&pen_black);
+		oldbr = pDC->SelectObject(&brush_white);
+		
+		// 背景透過処理
+		pDC->SetBkMode( TRANSPARENT );
 
-	// ペン・ブラシ変更
-	oldpen = pDC->SelectObject(&pen_black);
-	//oldbr = pDC->SelectObject(&br_yellow);
+		// Grid描画
+		int iX = 0;
+		int iY = 0;
+		int iDiff = 15;
+		for( int j=1; j<=m_drawgrid.m_iGridY; j++ ){
+			for( int i=1; i<=m_drawgrid.m_iGridX; i++ ){
+				// 電波範囲
+				if( m_drawgrid.m_grid[i][j].iAP >= 0 ){
+					int iColor = m_drawgrid.m_grid[i][j].iAP;
+					// 本来は３チャンネルのため３色だけでいいがいまのところ6色用意しておく
+					pDC->SelectObject( &brush_weak[iColor] );
+				}
+				// APの場所
+				if( m_drawgrid.m_grid[i][j].bAP != FALSE ){
+					int iColor = m_drawgrid.m_grid[i][j].iAP;
+					// 塗りつぶす色を変える
+					pDC->SelectObject( &brush_strong[iColor] );
+				}
+				// 障害物
+				if( m_drawgrid.m_grid[i][j].bNotValid != FALSE ){
+					// 塗りつぶす色を変える
+					pDC->SelectObject( &brush_gray );
+				}
+				// 四角形描写
+				pDC->Rectangle( iX, iY, iX+iDiff, iY+iDiff );
 
-	// Grid描画
-	int iX = 0;
-	int iY = 0;
-	int iDiff = 15;
-	for( int j=1; j<=grid.m_iGridY; j++ ){
-		for( int i=1; i<=grid.m_iGridX; i++ ){
-			pDC->Rectangle( iX, iY, iX+iDiff, iY+iDiff );
+				// 人の期待値
+				if( m_drawgrid.m_grid[i][j].iExpVal > 0 ){
+					CFont *miniFont;
+					int iDiffFontX = 4;
+					int iDiffFontY = 1;
+					miniFont = new CFont;
+					miniFont->CreatePointFont( 80, _T("ＭＳ Ｐゴシック") );
+					pDC->SelectObject(miniFont);
+					cstr.Format( "%i", m_drawgrid.m_grid[i][j].iExpVal );
+					
+					pDC->TextOutA( iX+iDiffFontX, iY+iDiffFontY, cstr );
+				}
 
-			// 人の期待値
-			if( grid.m_grid[i][j].iExpVal > 0 ){
-				//cstr.Format( "%i", grid.m_grid[i][j].iExpVal );
-				pDC->TextOutA( iX, iY, "1" );
-				
+				iX += iDiff;
 			}
-			iX += iDiff;
+			iX = 0;
+			iY += iDiff;
 		}
-		iX = 0;
-		iY += iDiff;
+
+		// 円描画
+		//pDC->Ellipse(10,10,100,100);
+
+		// 正方形描写
+		//pDC->MoveTo( 10, 10 );
+		//pDC->Rectangle( 0,0,20,20 );
+
+		// 初期化
+		pDC->SelectObject(oldpen);
+		pDC->SelectObject(oldbr);
+
+		// 解放処理
+		m_pict.ReleaseDC( pDC );
 	}
-
-	// 円描画
-	//pDC->Ellipse(10,10,100,100);
-
-	// 正方形描写
-	//pDC->MoveTo( 10, 10 );
-	//pDC->Rectangle( 0,0,20,20 );
-
-	// 初期化
-	pDC->SelectObject(oldpen);
-	//pDC->SelectObject(oldbr);
-
-	// 解放処理
-	m_pict.ReleaseDC( pDC );
 }
