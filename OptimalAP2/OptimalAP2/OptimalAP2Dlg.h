@@ -39,6 +39,7 @@ public:
 	BOOL m_bDraw;
 	void OnGridDraw();
 	CGrid m_drawgrid;
+	CProgressCtrl* m_progGene;
 
 	afx_msg void OnBnClickedBtnExit();
 	afx_msg void OnBnClickedBtnExecute();
@@ -53,4 +54,7 @@ public:
 	afx_msg void OnBnClickedChkObstacle();
 	afx_msg void OnBnClickedBtnDraw();
 	CStatic m_pict;
+	virtual void OnOK();
+	virtual void OnCancel();
+	void SetPosProgressGene( int iPos );
 };

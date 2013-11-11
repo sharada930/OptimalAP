@@ -60,6 +60,9 @@ BOOL COptimalAP2Dlg::OnInitDialog()
 
 	m_bDraw = FALSE;
 
+	// プログレスバーの初期化
+	m_progGene = ( CProgressCtrl* )GetDlgItem( IDC_PROG_GENE );
+
 	// iniファイルから設定を読み込む
 	LoadIniFile();
 
@@ -143,11 +146,15 @@ void COptimalAP2Dlg::OnBnClickedBtnExecute()
 	}
 	else{
 		m_data.bObs = FALSE;
+		m_data.iObstacle = 0;
 	}
 	// GUI Mode
 	chkMode = ( CButton* )GetDlgItem( IDC_CHK_GUI);
 	if( chkMode->GetCheck() == 1 ){
 		m_data.bGUI  = TRUE;
+
+		// プログレスバーの設定
+		m_progGene->SetRange32( 0, m_data.iGene );
 	}
 	else{
 		m_data.bGUI = FALSE;
@@ -365,12 +372,9 @@ UINT DrawThread( LPVOID lpParam )
 			pDlg->m_drawgrid.m_iGridX = tmp_grid->m_iGridX;
 			pDlg->m_drawgrid.m_iGridY = tmp_grid->m_iGridY;
 			pDlg->m_drawgrid.m_Speed = tmp_grid->m_Speed;
+
 			UnmapViewOfFile( tmp_grid );
 			tmp_grid = NULL;
-
-			// データ受取完了通知
-			hRevEvent = OpenEvent( EVENT_MODIFY_STATE, FALSE, "OPTIMALAP_END_DRAW_EVENT" );
-			SetEvent( hRevEvent );
 
 			// 終了処理
 			CloseHandle( hMap );
@@ -385,6 +389,7 @@ UINT DrawThread( LPVOID lpParam )
 	if( hSendEvent != NULL ){
 		CloseHandle( hSendEvent );
 	}
+
 	return TRUE;
 }
 // 描画ボタン　後々消す
@@ -486,4 +491,25 @@ void COptimalAP2Dlg::OnGridDraw(){
 		// 解放処理
 		m_pict.ReleaseDC( pDC );
 	}
+}
+
+void COptimalAP2Dlg::OnOK()
+{
+	// TODO: ここに特定なコードを追加するか、もしくは基本クラスを呼び出してください。
+
+	CDialogEx::OnOK();
+}
+
+
+void COptimalAP2Dlg::OnCancel()
+{
+	// TODO: ここに特定なコードを追加するか、もしくは基本クラスを呼び出してください。
+
+	CDialogEx::OnCancel();
+}
+
+
+void COptimalAP2Dlg::SetPosProgressGene( int iPos)
+{
+	m_progGene->SetPos( iPos );
 }

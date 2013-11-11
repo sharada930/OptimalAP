@@ -74,6 +74,8 @@ void GeneticAlgorithm( PSETTING_DATA data ){
 	int iY = data->iGridY;
 	int iExpval = data->iHuman;
 	int iMaxGene = data->iGene;
+	HANDLE hSendEvent = NULL;
+	HANDLE hMap = NULL;
 
 	g_iTotalAP = data->iAP; //暫定
 	{
@@ -108,7 +110,7 @@ void GeneticAlgorithm( PSETTING_DATA data ){
 		}
 		//---------------------1.初期集団の形成 ここまで---------------------//
 
-		while( iLoop <= iMaxGene){
+		while( iLoop <= iMaxGene ){
 			//---------------------2.適応度---------------------//
 			for( i=0; i<child_num; i++ ){
 				// 局所探索法
@@ -128,12 +130,7 @@ void GeneticAlgorithm( PSETTING_DATA data ){
 
 			// 描画処理
 			if( data->bGUI ){
-				HANDLE hSendEvent = NULL;
-				HANDLE hRevEvent = NULL;
-				HANDLE hMap = NULL;
 				CGrid *tmp_grid;
-
-				hRevEvent = CreateEvent( NULL, TRUE, FALSE, "OPTIMALAP_END_DRAW_EVENT" );
 
 				// グリッドデータもダイアログに送る
 				hMap = CreateFileMapping( NULL, NULL, PAGE_READWRITE, 0, sizeof( CGrid ), "OPTIMALAP_DRAW_MAP" );
@@ -143,17 +140,15 @@ void GeneticAlgorithm( PSETTING_DATA data ){
 				tmp_grid->m_iGridY =  parent_grid[0].m_iGridY;
 				tmp_grid->CopyGridData( parent_grid[0] );
 				tmp_grid->m_Speed = parent_grid[0].m_Speed;
+				
 				FlushViewOfFile( tmp_grid, sizeof( CGrid ) );
 				UnmapViewOfFile( tmp_grid );
 
 				// ダイアログに通知する
-				hSendEvent = OpenEvent( EVENT_MODIFY_STATE, FALSE, "OPTIMALAP_DRAW_EVENT" );
+				if( hSendEvent == NULL ){
+					hSendEvent = OpenEvent( EVENT_ALL_ACCESS, FALSE, "OPTIMALAP_DRAW_EVENT" );
+				}
 				SetEvent( hSendEvent );
-
-				// 描写終了待ち		
-				WaitForSingleObject( hRevEvent, INFINITE );
-				ResetEvent( hRevEvent );
-				CloseHandle( hRevEvent );
 			}
 			else{
 				// ファイルに落とす
@@ -336,7 +331,6 @@ CGrid LocalSearchAlgorithm( CGrid org_grid, CAPoint org_ap )
 	CAPoint new_ap;
 	CGrid		temp_grid;
 	CAPoint temp_ap;
-	
 
 	new_grid.Init( org_grid.m_iGridX, org_grid.m_iGridY );
 	temp_grid.Init( org_grid.m_iGridX, org_grid.m_iGridY );
@@ -582,9 +576,21 @@ VOID CalcCoverArea( CGrid grid, CAPoint ap )
 				dY = ap.m_ap[iap].iPosY - j;
 				dDis = sqrt( dX*dX+dY*dY );
 
+				// APとグリッドの距離が電波の届く距離よりも遠い場合はもうさよなら
+				if( dDis > (g_APPower/g_iGridSize) ){
+					continue;
+				}
 				// 障害物処理
 				bCross = FALSE;
 				for( int iobs=1; iobs<=g_obs.m_iTotalObs; iobs++ ){
+					double dX2 = g_obs.m_pObs[iobs].iPosX -  ap.m_ap[iap].iPosX;
+					double dY2 = g_obs.m_pObs[iobs].iPosY -  ap.m_ap[iap].iPosY;
+					double dDis2 = sqrt( dX2*dX2+dY2*dY2 );
+					
+					// APと障害物の距離が電波の届く距離よりも遠い場合はもうさよなら
+					if( dDis2 > (g_APPower/g_iGridSize) ){
+						continue;
+					}
 					// こいつが遅い、なんとかしないと...
 					bCross = CheckCrossingObstacle( i, j,  ap.m_ap[iap].iPosX, ap.m_ap[iap].iPosY, g_obs.m_pObs[iobs].iPosX, g_obs.m_pObs[iobs].iPosY );
 					if( bCross != FALSE ){

@@ -34,6 +34,5 @@ typedef struct _GRID_DATA{
 	int m_iUnCoverArea;
 	double m_Speed;
 	GRID_DATA **m_grid;
-
 };
 
