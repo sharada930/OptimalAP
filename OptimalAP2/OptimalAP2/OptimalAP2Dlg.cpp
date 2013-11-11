@@ -127,7 +127,7 @@ void COptimalAP2Dlg::OnBnClickedBtnExecute()
 	// コントロールから内容を取り出す
 	GetDlgItemText( IDC_EDIT_INPUT, m_data.cInputPath, sizeof( m_data.cInputPath ) );
 	GetDlgItemText( IDC_EDIT_OUTPUT, m_data.cOutputPath, sizeof( m_data.cOutputPath ) );
-	if( m_data.cInputPath[0] == 0x00 || m_data.cOutputPath[0] == 0x00 ){
+	if( m_data.cOutputPath[0] == 0x00 ){
 		ErrorMessageBox( "WorkPath Error", MB_OK );
 		goto EXIT_EXE;
 	}

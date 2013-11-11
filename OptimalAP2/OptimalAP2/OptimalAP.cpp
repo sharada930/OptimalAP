@@ -86,27 +86,53 @@ void GeneticAlgorithm( PSETTING_DATA data ){
 		int j = 0;
 		int iLoop = 1;
 		
-		g_obs.Init( data->iObstacle );
-
-		// 人の期待値、障害物は共通
-		for( i=0; i<child_num; i++ ){
-			// 乱数初期化処理
-			srand( 1 );
-			// グリッドサイズ
-			child_grid[i].Init( iX, iY );
-			// 障害物
-			if( data->bObs ){
-				child_grid[i].RandomSetObstacle( data->iObstacle, &g_obs  );
+		// CSVファイルからグリッドデータを読み取る場合
+		if( data->cInputPath[0] != 0x00 ){
+			// ダイアログに書かれている数字に合わせないとだめ
+			
+			// 子どもたちを初期化
+			for( i=0; i<child_num; i++ ){
+				child_grid[i].Init( iX, iY );
 			}
-			// 人の期待値
-			child_grid[i].RandomSetExpVal( iExpval );
+			g_obs.Init( data->iObstacle );
+			ReadCSVFile( data->cInputPath, child_grid[0], g_obs );
+			// CSVから読み取った情報をコピー
+			for( i=1; i<child_num; i++ ){
+				child_grid[i].CopyGridData( child_grid[0] );
+			}
+
+			// APの配置はランダム
+			srand( 1 );
+			for( i=0; i<child_num; i++ ){
+				// APの数
+				ap[i].Init( g_iTotalAP );
+				RandomSetAPToGrid( child_grid[i], ap[i] );
+			}
 		}
-		// APの配置はランダム
-		srand( 1 );
-		for( i=0; i<child_num; i++ ){
-			// APの数
-			ap[i].Init( g_iTotalAP );
-			RandomSetAPToGrid( child_grid[i], ap[i] );
+		// ランダムでおまかせモード
+		else{
+			g_obs.Init( data->iObstacle );
+
+			// 人の期待値、障害物は共通
+			for( i=0; i<child_num; i++ ){
+				// 乱数初期化処理
+				srand( 1 );
+				// グリッドサイズ
+				child_grid[i].Init( iX, iY );
+				// 障害物
+				if( data->bObs ){
+					child_grid[i].RandomSetObstacle( data->iObstacle, &g_obs  );
+				}
+				// 人の期待値
+				child_grid[i].RandomSetExpVal( iExpval );
+			}
+			// APの配置はランダム
+			srand( 1 );
+			for( i=0; i<child_num; i++ ){
+				// APの数
+				ap[i].Init( g_iTotalAP );
+				RandomSetAPToGrid( child_grid[i], ap[i] );
+			}
 		}
 		//---------------------1.初期集団の形成 ここまで---------------------//
 
@@ -719,9 +745,9 @@ BOOL CheckCrossingObstacle( double X, double Y, double APX, double APY, double O
 	}
 	return FALSE;
 }
-#if 0
+#if 1
 // CSVファイルを読み込む
-BOOL ReadCSVFile( PCHAR pCSVPath )
+BOOL ReadCSVFile( PCHAR pCSVPath, CGrid grid, CObstacle obs )
 {
 	HANDLE	hFile = NULL;
 	DWORD		dwSize = 0;
@@ -731,6 +757,7 @@ BOOL ReadCSVFile( PCHAR pCSVPath )
 	BOOL		bRet = FALSE;
 	INT			i = 1;
 	INT			j = 1;
+	INT			iCnt = 1;
 
 	// ファイル存在確認
 	if( GetFileAttributes( pCSVPath ) != (DWORD)-1 ){
@@ -753,15 +780,23 @@ BOOL ReadCSVFile( PCHAR pCSVPath )
 						else if( *pCur == '\n' ){
 							pCur++;
 							j++;
-							g_iFieldSizeX = i - 1;
+							//g_iFieldSizeX = i - 1;
 							i = 1;
 							if( strstr( pCur, "," ) == NULL ){
-								g_iFieldSizeY = j - 1;
+								//g_iFieldSizeY = j - 1;
 								break;
 							}
 						}
+						else if( *pCur == 'X' ){
+							grid.m_grid[i][j].bNotValid = TRUE;
+							obs.m_pObs[iCnt].iPosX = i;
+							obs.m_pObs[iCnt].iPosY = j;
+							pCur++;
+							i++;
+							iCnt++;
+						}
 						else{
-							g_org_griddata[i][j].iExpVal = atoi( pCur );
+							grid.m_grid[i][j].iExpVal = atoi( pCur );
 							pCur++;
 							i++;
 						}
@@ -770,6 +805,7 @@ BOOL ReadCSVFile( PCHAR pCSVPath )
 				}
 				LocalFree( pBuf );
 			}
+			CloseHandle( hFile );
 		}
 	}
 	return bRet;

@@ -56,7 +56,7 @@ VOID CalcCoverArea( CGrid grid, CAPoint ap );
 VOID AddTabuList( INT iX, INT iY );
 BOOL CheckTabuList( INT iX, INT iY );
 double CalcSpeed( CGrid grid, CAPoint ap );
-BOOL ReadCSVFile( PCHAR pCSVPath );
+BOOL ReadCSVFile( PCHAR pCSVPath, CGrid grid, CObstacle obs );
 void GeneticAlgorithm( PSETTING_DATA data );
 CGrid RandomUnitGrid( CGrid grid1, CGrid grid2, CAPoint* newap );
 BOOL CheckCrossingObstacle( double X, double Y, double APX, double APY, double ObsX, double ObsY );
